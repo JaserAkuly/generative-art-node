@@ -1,4 +1,4 @@
-const fs = require("fs");
+const fs = require("fs").promises;
 const { createCanvas, loadImage } = require("canvas");
 const console = require("console");
 const { layersOrder, format, rarity } = require("./config.js");
@@ -39,42 +39,44 @@ const cleanName = _str => {
   return name;
 };
 
-const getElements = path => {
-  return fs
-    .readdirSync(path)
-    .filter((item) => !/(^|\/)\.[^\/\.]/g.test(item))
-    .map((i, index) => {
-      return {
-        id: index + 1,
-        name: cleanName(i),
-        fileName: i,
-        rarity: addRarity(i),
-      };
-    });
+const getElements = async(path) => {
+  const result = await fs.readdir(path);
+  return result.filter((item) => !/(^|\/)\.[^\/\.]/g.test(item)).map((i, index) => {
+		return {
+		id: index + 1,
+		name: cleanName(i),
+		fileName: i,
+		rarity: addRarity(i),
+		};
+	});
 };
 
-const layersSetup = layersOrder => {
-  const layers = layersOrder.map((layer, index) => ({
-    id: index,
-    name: layer,
-    location: `${layersDir}/${layer}/`,
-    elements: getElements(`${layersDir}/${layer}/`),
-    position: { x: 0, y: 0 },
-    size: { width: format.width, height: format.height },
-  }));
-
+const layersSetup = async(layersOrder) => {
+  const layers = layersOrder.map(async(layer, index) => {
+	const elements = await getElements(`${layersDir}/${layer}/`);
+	return {
+		id: index,
+		name: layer,
+		location: `${layersDir}/${layer}/`,
+		elements,
+		position: { x: 0, y: 0 },
+		size: { width: format.width, height: format.height },
+	}
+  });
   return layers;
 };
 
-const buildSetup = () => {
-  if (fs.existsSync(buildDir)) {
-    fs.rmdirSync(buildDir, { recursive: true });
+const buildSetup = async() => {
+  try {
+	await fs.rmdir(buildDir, { recursive: true });
+  } catch (err) {
+	console.log(`. ${buildDir} doesn't exist, can't delete it`);
   }
-  fs.mkdirSync(buildDir);
+  await fs.mkdir(buildDir);
 };
 
-const saveLayer = (_canvas, _edition) => {
-  fs.writeFileSync(`${buildDir}/${_edition}.png`, _canvas.toBuffer("image/png"));
+const saveLayer = async(_canvas, _edition) => {
+  await fs.writeFile(`${buildDir}/${_edition}.png`, _canvas.toBuffer("image/png"));
 };
 
 const addMetadata = _edition => {
@@ -118,29 +120,24 @@ const drawLayer = async (_layer, _edition) => {
     _layer.size.width,
     _layer.size.height
   );
-  saveLayer(canvas, _edition);
+  await saveLayer(canvas, _edition);
 };
 
-const createFiles = edition => {
-  const layers = layersSetup(layersOrder);
+const createFiles = async(edition) => {
+  const layers = await layersSetup(layersOrder);
 
   for (let i = 1; i <= edition; i++) {
-    layers.forEach((layer) => {
-      drawLayer(layer, i);
-    });
+    for (const layer of layers) {
+		await drawLayer(layer, i);
+	}
     addMetadata(i);
     console.log("Creating edition " + i);
   }
 };
 
-const createMetaData = () => {
-  fs.stat(`${buildDir}/${metDataFile}`, (err) => {
-    if(err == null || err.code === 'ENOENT') {
-      fs.writeFileSync(`${buildDir}/${metDataFile}`, JSON.stringify(metadata));
-    } else {
-        console.log('Oh no, error: ', err.code);
-    }
-  });
+const createMetaData = async() => {
+  await fs.stat(`${buildDir}/${metDataFile}`);
+  fs.writeFile(`${buildDir}/${metDataFile}`, JSON.stringify(metadata));
 };
 
 module.exports = { buildSetup, createFiles, createMetaData };
