@@ -52,18 +52,19 @@ const getElements = async(path) => {
 };
 
 const layersSetup = async(layersOrder) => {
-  const layers = layersOrder.map(async(layer, index) => {
-	const elements = await getElements(`${layersDir}/${layer}/`);
-	return {
-		id: index,
-		name: layer,
-		location: `${layersDir}/${layer}/`,
-		elements,
-		position: { x: 0, y: 0 },
-		size: { width: format.width, height: format.height },
+	const layers = [];
+	for (const [index, layer] of layersOrder.entries()) {
+		const elements = await getElements(`${layersDir}/${layer}/`);
+		layers.push({
+			id: index,
+			name: layer,
+			location: `${layersDir}/${layer}/`,
+			elements,
+			position: { x: 0, y: 0 },
+			size: { width: format.width, height: format.height },
+		})
 	}
-  });
-  return layers;
+	return layers;
 };
 
 const buildSetup = async() => {
@@ -136,8 +137,9 @@ const createFiles = async(edition) => {
 };
 
 const createMetaData = async() => {
-  await fs.stat(`${buildDir}/${metDataFile}`);
-  fs.writeFile(`${buildDir}/${metDataFile}`, JSON.stringify(metadata));
+	console.log("dumping metadata")
+	console.log(JSON.stringify(metadata))
+  fs.writeFile(`${buildDir}/${metDataFile}`, JSON.stringify(metadata, null, 2));
 };
 
 module.exports = { buildSetup, createFiles, createMetaData };
